@@ -24,15 +24,17 @@ export type DAY_OF_WEEK =
   | "THURSDAY"
   | "FRIDAY";
 
+export type EMOTE_OF_WEEK_DAY = "🌖" | "🦖" | "🐢" | "🌩️" | "🆓";
+
 export const EMOTE_TO_DAY_OF_WEEK = {
-  MONDAY: (date: Date) => nextMonday(addWeeks(startOfWeek(date), 1)),
-  TUESDAY: (date: Date) => nextTuesday(addWeeks(startOfWeek(date), 1)),
-  WEDNESDAY: (date: Date) => nextWednesday(addWeeks(startOfWeek(date), 1)),
-  THURSDAY: (date: Date) => nextThursday(addWeeks(startOfWeek(date), 1)),
-  FRIDAY: (date: Date) => nextFriday(addWeeks(startOfWeek(date), 1)),
+  "🌖": (date: Date) => nextMonday(addWeeks(startOfWeek(date), 1)),
+  "🦖": (date: Date) => nextTuesday(addWeeks(startOfWeek(date), 1)),
+  "🐢": (date: Date) => nextWednesday(addWeeks(startOfWeek(date), 1)),
+  "🌩️": (date: Date) => nextThursday(addWeeks(startOfWeek(date), 1)),
+  "🆓": (date: Date) => nextFriday(addWeeks(startOfWeek(date), 1)),
 };
 
-export function emoteToDate(emote: DAY_OF_WEEK) {
+export function emoteToDate(emote: EMOTE_OF_WEEK_DAY) {
   const now = new Date();
   const dateFn = EMOTE_TO_DAY_OF_WEEK[emote];
   return dateFn(now);

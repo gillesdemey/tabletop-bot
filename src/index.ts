@@ -1,7 +1,15 @@
 import { maxBy } from "@std/collections";
 import { format, secondsToMilliseconds } from "date-fns";
-import { Client, GatewayIntentBits, Message, TextChannel } from "discord.js";
+import {
+  Client,
+  GatewayIntentBits,
+  Message,
+  MessageReaction,
+  TextChannel,
+  User,
+} from "discord.js";
 import { EMOTE_TO_DAY_OF_WEEK, EMOTES, emoteToDate } from "./emotes";
+import { isTextChannel } from "./util";
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_NAME = process.env.CHANNEL_NAME ?? "tabletop";
@@ -33,13 +41,13 @@ async function setupClient() {
 async function postQuestion(channel: TextChannel) {
   const now = new Date();
   // emotes without "none" so we can dump the dates
-  const emotes = Object.values(EMOTES).filter((e) => e !== EMOTES.NONE);
+  const emotes = Object.values(EMOTES).filter((e) => e !== "❌");
 
   const dateOverview = emotes
     .map((emote) => {
       const date = emoteToDate(emote);
 
-      return `${emote} – ${formatDate(date)}`;
+      return `${emote}\t${formatDate(date)}`;
     })
     .join("\n");
 
@@ -107,25 +115,51 @@ async function runBot() {
 }
 
 async function messageConcensus(message: Message<true>) {
-  const userReactions = await message.awaitReactions({
-    filter: async (emote, user) => {
-      const guild = message.guild;
-      const member = await guild.members.fetch(user.id);
+  const userReactions: MessageReaction[] = [];
 
-      const isBot = user.bot;
-      const isDayEmote = Object.values(EMOTES).includes(emote.emoji.name);
-      const isTableTopUser = member.roles.cache.has(ROLE_ID);
+  const filter = async (emote: MessageReaction, user: User) => {
+    const guild = message.guild;
+    const member = await guild.members.fetch(user.id);
 
-      return isDayEmote && !isBot && isTableTopUser;
-    },
-    // time: hoursToMilliseconds(24),
-    time: secondsToMilliseconds(5),
+    const isBot = user.bot;
+    const isDayEmote = Object.values(EMOTES).includes(emote.emoji.name);
+    const isTableTopUser = member.roles.cache.has(ROLE_ID);
+
+    return isDayEmote && !isBot && isTableTopUser;
+  };
+
+  await new Promise(async (resolve) => {
+    // @TODO use hoursToMilliseconds(24)
+    const collector = message.createReactionCollector({
+      filter,
+      time: secondsToMilliseconds(5),
+    });
+
+    collector.on("collect", async (reaction, user) => {
+      userReactions.push(reaction);
+
+      // check if we have all users replied
+      const earlyConsensus = await haveAllUserReactions(userReactions);
+      if (earlyConsensus) {
+        resolve(userReactions);
+        return;
+      }
+    });
+
+    collector.once("end", () => resolve(userReactions));
   });
 
   const reactionsArray = Array.from(userReactions.values());
   const dayWithMostVotes = maxBy(reactionsArray, (reaction) => reaction.count);
 
   return dayWithMostVotes;
+}
+
+async function haveAllUserReactions(
+  reactions: MessageReaction[],
+): Promise<boolean> {
+  const client = reactions[0].client;
+  return false;
 }
 
 await runBot();
