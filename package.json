@@ -1,0 +1,16 @@
+{
+  "name": "tabletop-bot",
+  "module": "src/index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@std/collections": "npm:@jsr/std__collections",
+    "date-fns": "^4.1.0",
+    "discord.js": "^14.16.3"
+  }
+}
