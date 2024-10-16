@@ -1,40 +1,7 @@
-import { maxBy } from '@std/collections';
-import {
-  addWeeks,
-  format,
-  nextFriday,
-  nextMonday,
-  nextThursday,
-  nextTuesday,
-  nextWednesday,
-  secondsToMilliseconds,
-  startOfWeek,
-} from "date-fns";
-import {
-  ChannelType,
-  Client,
-  GatewayIntentBits,
-  Message,
-  TextChannel,
-  type Channel,
-} from "discord.js";
-
-enum EMOTE {
-  MONDAY = "🌖",
-  TUESDAY = "🦖",
-  WEDNESDAY = "🐢",
-  THURSDAY = "🌩️",
-  FRIDAY = "🆓",
-  NONE = "❌",
-}
-
-const EMOTE_TO_DAY_OF_WEEK = {
-  [EMOTE.MONDAY]: (date: Date) => nextMonday(addWeeks(startOfWeek(date), 1)),
-  [EMOTE.TUESDAY]: (date: Date) => nextTuesday(addWeeks(startOfWeek(date), 1)),
-  [EMOTE.WEDNESDAY]: (date: Date) => nextWednesday(addWeeks(startOfWeek(date), 1)),
-  [EMOTE.THURSDAY]: (date: Date) => nextThursday(addWeeks(startOfWeek(date), 1)),
-  [EMOTE.FRIDAY]: (date: Date) => nextFriday(addWeeks(startOfWeek(date), 1)),
-};
+import { maxBy } from "@std/collections";
+import { format, secondsToMilliseconds } from "date-fns";
+import { Client, GatewayIntentBits, Message, TextChannel } from "discord.js";
+import { EMOTE_TO_DAY_OF_WEEK, EMOTES, emoteToDate } from "./emotes";
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_NAME = process.env.CHANNEL_NAME ?? "tabletop";
@@ -66,14 +33,15 @@ async function setupClient() {
 async function postQuestion(channel: TextChannel) {
   const now = new Date();
   // emotes without "none" so we can dump the dates
-  const emotes = Object.values(EMOTE).filter(e => e !== EMOTE.NONE);
+  const emotes = Object.values(EMOTES).filter((e) => e !== EMOTES.NONE);
 
-  const dateOverview = emotes.map((emote) => {
-    const dateFn = EMOTE_TO_DAY_OF_WEEK[emote];
-    const date = dateFn(now);
+  const dateOverview = emotes
+    .map((emote) => {
+      const date = emoteToDate(emote);
 
-    return `${emote} – ${formatDate(date)}`
-  }).join('\n');
+      return `${emote} – ${formatDate(date)}`;
+    })
+    .join("\n");
 
   const message = await channel.send(`
 # 🗓️ Tabletop scheduling
@@ -92,7 +60,7 @@ ${dateOverview}
   return message;
 }
 
-const formatDate = (date: Date) => format(date, "MMM do")
+const formatDate = (date: Date) => format(date, "MMM do");
 
 // 3. count number of replies when either
 //  3.1 12 hours have passed
@@ -100,7 +68,6 @@ const formatDate = (date: Date) => format(date, "MMM do")
 // 4. send a message with final decision
 //  4.1 either a date
 //  4.2 no date found, skipping
-
 async function runBot() {
   const client = await setupClient();
 
@@ -114,15 +81,15 @@ async function runBot() {
 
   const message = await postQuestion(channel);
   const consensus = await messageConcensus(message);
-  console.log(consensus?.emoji.name);
+  console.log("concensus", consensus?.emoji.name);
 
   if (!consensus) {
-    const message = 'Tabletop is skipped next week 🥲';
+    const message = "Tabletop is skipped next week 🥲";
 
     console.log(message);
     channel.send(message);
 
-    return
+    return;
   } else {
     const now = new Date();
     const emote = consensus.emoji.name;
@@ -130,17 +97,13 @@ async function runBot() {
     const dateOfTableTop = dateFn(now);
 
     const formattedDate = formatDate(dateOfTableTop);
-    const message =`Tabletop is on **${formattedDate}**`;
+    const message = `Tabletop is on **${formattedDate}**`;
 
     console.log(message);
     channel.send(message);
 
     return;
   }
-}
-
-function isTextChannel(channel: Channel): channel is TextChannel {
-  return (channel as TextChannel).type === ChannelType.GuildText;
 }
 
 async function messageConcensus(message: Message<true>) {
@@ -150,7 +113,7 @@ async function messageConcensus(message: Message<true>) {
       const member = await guild.members.fetch(user.id);
 
       const isBot = user.bot;
-      const isDayEmote = Object.values(EMOTE).includes(emote.emoji.name);
+      const isDayEmote = Object.values(EMOTES).includes(emote.emoji.name);
       const isTableTopUser = member.roles.cache.has(ROLE_ID);
 
       return isDayEmote && !isBot && isTableTopUser;
@@ -160,7 +123,7 @@ async function messageConcensus(message: Message<true>) {
   });
 
   const reactionsArray = Array.from(userReactions.values());
-  const dayWithMostVotes = maxBy(reactionsArray, reaction => reaction.count);
+  const dayWithMostVotes = maxBy(reactionsArray, (reaction) => reaction.count);
 
   return dayWithMostVotes;
 }
