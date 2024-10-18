@@ -1,8 +1,10 @@
 import { maxBy } from "@std/collections";
-import { format, secondsToMilliseconds } from "date-fns";
+import { format, hoursToMilliseconds } from "date-fns";
 import {
   Client,
+  Collection,
   GatewayIntentBits,
+  GuildMember,
   Message,
   MessageReaction,
   TextChannel,
@@ -116,7 +118,16 @@ async function runBot() {
 
 async function messageConcensus(message: Message<true>) {
   const userReactions: MessageReaction[] = [];
+  const role = message.guild.roles.cache.get(ROLE_ID);
+  if (!role) {
+    throw new Error("failed to fetch role");
+  }
 
+  // make sure cache is filled
+  await message.guild.members.fetch();
+  const membersWithRole = role.members;
+
+  // this filter will make sure we only collect reactions from specified emojis and member of the ROLE_ID
   const filter = async (emote: MessageReaction, user: User) => {
     const guild = message.guild;
     const member = await guild.members.fetch(user.id);
@@ -129,17 +140,20 @@ async function messageConcensus(message: Message<true>) {
   };
 
   await new Promise(async (resolve) => {
-    // @TODO use hoursToMilliseconds(24)
     const collector = message.createReactionCollector({
       filter,
-      time: secondsToMilliseconds(5),
+      time: hoursToMilliseconds(8),
     });
 
-    collector.on("collect", async (reaction, user) => {
+    collector.on("collect", async (reaction) => {
       userReactions.push(reaction);
 
-      // check if we have all users replied
-      const earlyConsensus = await haveAllUserReactions(userReactions);
+      // check if all role members have replied
+      const earlyConsensus = await haveAllUserReactions(
+        userReactions,
+        membersWithRole,
+      );
+
       if (earlyConsensus) {
         resolve(userReactions);
         return;
@@ -155,11 +169,24 @@ async function messageConcensus(message: Message<true>) {
   return dayWithMostVotes;
 }
 
+// @TODO how do I test this?
 async function haveAllUserReactions(
   reactions: MessageReaction[],
+  roleMembers: Collection<string, GuildMember>,
 ): Promise<boolean> {
-  const client = reactions[0].client;
-  return false;
+  // fetch a flat list of all users based on all of the collected reactions
+  const allusers = await Promise.all(
+    reactions.flatMap(async (reaction) => {
+      const usersForReaction = await reaction.users.fetch();
+      return Array.from(usersForReaction.values());
+    }),
+  ).then((u) => u.flatMap((u) => u));
+
+  const allMembersVoted = roleMembers.every((member) => {
+    return allusers.some((user) => user.id === member.user.id);
+  });
+
+  return allMembersVoted;
 }
 
 await runBot();
